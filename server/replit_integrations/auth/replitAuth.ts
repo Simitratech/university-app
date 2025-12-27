@@ -23,23 +23,22 @@ export function getSession() {
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
-    createTableIfMissing: false,
+    createTableIfMissing: true,
     ttl: sessionTtl,
     tableName: "sessions",
   });
   
-  // In Replit, always use secure cookies since traffic is proxied through HTTPS
-  const isReplit = process.env.REPL_ID || process.env.REPLIT_DEV_DOMAIN;
+  const secret = process.env.SESSION_SECRET || "fallback-secret-change-in-production";
   
   return session({
-    secret: process.env.SESSION_SECRET!,
+    secret: secret,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: isReplit ? true : process.env.NODE_ENV === "production",
-      sameSite: isReplit ? "strict" : (process.env.NODE_ENV === "production" ? "none" : "lax"),
+      secure: true,
+      sameSite: "none" as const,
       maxAge: sessionTtl,
     },
   });

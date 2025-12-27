@@ -1007,6 +1007,17 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/gym-sessions/:id", isAuthenticated, isStudent, async (req, res) => {
+    try {
+      const studentId = getStudentId(req);
+      await storage.deleteGymSession(req.params.id, studentId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting gym session:", error);
+      res.status(500).json({ error: "Failed to delete gym session" });
+    }
+  });
+
   // ============== HAPPINESS (shared by studentId) ==============
   app.get("/api/happiness", isAuthenticated, async (req, res) => {
     try {

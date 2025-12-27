@@ -89,6 +89,7 @@ export interface IStorage {
   getGymSessions(studentId: string): Promise<GymSession[]>;
   getGymSessionsForWeek(studentId: string): Promise<GymSession[]>;
   createGymSession(data: InsertGymSession): Promise<GymSession>;
+  deleteGymSession(id: string, studentId: string): Promise<boolean>;
 
   // Happiness
   getHappinessEntries(studentId: string): Promise<HappinessEntry[]>;
@@ -391,6 +392,12 @@ export class DatabaseStorage implements IStorage {
   async createGymSession(data: InsertGymSession): Promise<GymSession> {
     const [result] = await db.insert(gymSessions).values(data).returning();
     return result;
+  }
+
+  async deleteGymSession(id: string, studentId: string): Promise<boolean> {
+    const result = await db.delete(gymSessions)
+      .where(and(eq(gymSessions.id, id), eq(gymSessions.studentId, studentId)));
+    return (result.rowCount ?? 0) > 0;
   }
 
   // Happiness

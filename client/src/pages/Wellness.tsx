@@ -10,12 +10,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useStudentData } from "@/lib/student-data-provider";
-import { Dumbbell, Smile, Plus, Calendar, Target, Footprints, Heart } from "lucide-react";
+import { Dumbbell, Smile, Plus, Calendar, Target, Footprints, Heart, Trash2 } from "lucide-react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { getDailyCoachMessage } from "@/lib/coach-messages";
 
@@ -25,7 +26,7 @@ export default function Wellness() {
   const isStudent = user?.role === "student";
   const [showAddGym, setShowAddGym] = useState(false);
   const [showAddHappiness, setShowAddHappiness] = useState(false);
-  const { studentData, isLoading, addGymSession, addHappinessEntry } = useStudentData();
+  const { studentData, isLoading, addGymSession, deleteGymSession, addHappinessEntry } = useStudentData();
 
   const gymSessions = studentData?.gymSessions || [];
   const happinessEntries = studentData?.happinessEntries || [];
@@ -167,7 +168,7 @@ export default function Wellness() {
                 icon={<Dumbbell className="w-8 h-8" />}
                 title="No gym sessions"
                 description="Log your workouts to track your fitness"
-                action={{ label: "Add Session", onClick: () => setShowAddGym(true) }}
+                action={isStudent ? { label: "Add Session", onClick: () => setShowAddGym(true) } : undefined}
               />
             ) : (
               gymSessions?.slice(0, 10).map((session) => (
@@ -183,10 +184,41 @@ export default function Wellness() {
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold">{session.durationMinutes}m</p>
-                    {session.weight && (
-                      <p className="text-xs text-muted-foreground">{session.weight} lbs</p>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="font-semibold">{session.durationMinutes}m</p>
+                      {session.weight && (
+                        <p className="text-xs text-muted-foreground">{session.weight} lbs</p>
+                      )}
+                    </div>
+                    {isStudent && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Workout?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently delete this {session.type} session from {format(new Date(session.date), "MMM d")}.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={async () => {
+                                await deleteGymSession(session.id);
+                                toast({ title: "Workout deleted" });
+                              }}
+                              className="bg-destructive hover:bg-destructive/90"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     )}
                   </div>
                 </GlassCard>

@@ -37,6 +37,7 @@ interface StudentDataContextType {
   addStudySession: (session: Omit<StudentDataStudySession, "id">) => Promise<void>;
   deleteStudySession: (id: string) => Promise<void>;
   addGymSession: (session: Omit<StudentDataGymSession, "id">) => Promise<void>;
+  deleteGymSession: (id: string) => Promise<void>;
   addHappinessEntry: (entry: Omit<StudentDataHappinessEntry, "id">) => Promise<void>;
   updateDailyTracking: (date: string, updates: Partial<StudentDataDailyTracking>) => Promise<void>;
   addExpense: (expense: Omit<StudentDataExpense, "id">) => Promise<void>;
@@ -183,6 +184,12 @@ export function StudentDataProvider({ children }: { children: ReactNode }) {
     const data = getStudentData();
     const newSession: StudentDataGymSession = { ...session, id: generateId() };
     const updated = { ...data, gymSessions: [...data.gymSessions, newSession] };
+    await saveStudentData(updated);
+  }, [getStudentData, saveStudentData]);
+
+  const deleteGymSession = useCallback(async (id: string) => {
+    const data = getStudentData();
+    const updated = { ...data, gymSessions: data.gymSessions.filter(s => s.id !== id) };
     await saveStudentData(updated);
   }, [getStudentData, saveStudentData]);
 
@@ -364,6 +371,7 @@ export function StudentDataProvider({ children }: { children: ReactNode }) {
     addStudySession,
     deleteStudySession,
     addGymSession,
+    deleteGymSession,
     addHappinessEntry,
     updateDailyTracking,
     addExpense,

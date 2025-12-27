@@ -162,6 +162,39 @@ export function PomodoroTimer({
     };
   }, [timerState]);
 
+  // Play alarm sound using Web Audio API
+  const playAlarmSound = useCallback(() => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      
+      // Play a series of beeps
+      const playBeep = (time: number, frequency: number = 800) => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = frequency;
+        oscillator.type = "sine";
+        
+        gainNode.gain.setValueAtTime(0.3, time);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
+        
+        oscillator.start(time);
+        oscillator.stop(time + 0.3);
+      };
+      
+      // Play 3 beeps
+      const now = audioContext.currentTime;
+      playBeep(now, 800);
+      playBeep(now + 0.4, 800);
+      playBeep(now + 0.8, 1000);
+    } catch (e) {
+      console.log("Could not play alarm sound:", e);
+    }
+  }, []);
+
   useEffect(() => {
     if (timeLeft === 0 && (timerState === "focus" || timerState === "break")) {
       if (timerState === "focus") {
@@ -172,10 +205,15 @@ export function PomodoroTimer({
         setCoachMessage(getStudyCompleteMessage());
         setTimeout(() => setShowCelebration(false), 3000);
         
+        // Play alarm sound
+        playAlarmSound();
+        
+        // Show notification
         if ("Notification" in window && Notification.permission === "granted") {
           new Notification("Focus Session Complete!", {
             body: "Great work! Time for a break.",
             icon: "/favicon.ico",
+            requireInteraction: true,
           });
         }
         
@@ -183,13 +221,24 @@ export function PomodoroTimer({
         setTimeLeft(breakDuration * 60);
         startTimestampRef.current = Date.now();
       } else {
+        // Break is over
+        playAlarmSound();
+        
+        if ("Notification" in window && Notification.permission === "granted") {
+          new Notification("Break Over!", {
+            body: "Ready to focus again?",
+            icon: "/favicon.ico",
+            requireInteraction: true,
+          });
+        }
+        
         setTimerState("idle");
         setTimeLeft(focusDuration * 60);
         startTimestampRef.current = null;
         clearTimerState();
       }
     }
-  }, [timeLeft, timerState, sessionMinutes, focusDuration, breakDuration]);
+  }, [timeLeft, timerState, sessionMinutes, focusDuration, breakDuration, playAlarmSound]);
 
   const handleStart = () => {
     if ("Notification" in window && Notification.permission === "default") {

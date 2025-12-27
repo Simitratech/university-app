@@ -510,7 +510,7 @@ export default function Home() {
             <h3 className="font-semibold">Degree Progress</h3>
           </div>
           <div className="flex items-center gap-6">
-            <DegreeProgressPie completed={completed} inProgress={inProgress} remaining={remaining} size={100} />
+            <DegreeProgressPie completed={completed} inProgress={inProgress} remaining={remaining} total={total} size={100} />
             <DegreeProgressLegend completed={completed} inProgress={inProgress} remaining={remaining} />
           </div>
         </GlassCard>

@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useStudentData } from "@/lib/student-data-provider";
 import { format } from "date-fns";
 import { 
   Moon, 
@@ -31,12 +32,16 @@ import {
   Palette,
   Calendar,
   Archive,
-  Plus
+  Plus,
+  Droplets,
+  Target,
+  Edit2
 } from "lucide-react";
 import type { AppProfile, Semester, SemesterArchive } from "@shared/schema";
 
 export default function Settings() {
   const { user, logout } = useAuth();
+  const isStudent = user?.role === "student";
   const { theme, toggleTheme } = useTheme();
   const { universityTheme, setUniversityTheme } = useUniversityTheme();
   const [, setLocation] = useLocation();
@@ -44,7 +49,11 @@ export default function Settings() {
   
   const [showNewSemesterModal, setShowNewSemesterModal] = useState(false);
   const [showArchivesModal, setShowArchivesModal] = useState(false);
+  const [showGoalsModal, setShowGoalsModal] = useState(false);
   const [newSemesterName, setNewSemesterName] = useState("");
+
+  const { studentData, updateSettings } = useStudentData();
+  const settings = studentData?.settings;
 
   const { data: appProfile } = useQuery<AppProfile | null>({
     queryKey: ["/api/profile"],
@@ -99,32 +108,24 @@ export default function Settings() {
                 {getInitials()}
               </AvatarFallback>
             </Avatar>
-            <div>
-              <h2 className="text-xl font-bold" data-testid="text-user-name">
-                {appProfile?.name || `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "User"}
-              </h2>
-              <p className="text-muted-foreground" data-testid="text-user-email">
-                {appProfile?.email || user?.email}
-              </p>
-              {appProfile?.role && (
-                <p className="text-xs text-muted-foreground/70 capitalize mt-1">
-                  {appProfile.role}
-                </p>
-              )}
+            <div className="flex-1">
+              <h2 className="text-xl font-semibold">{appProfile?.name || user?.firstName || "Student"}</h2>
+              <p className="text-muted-foreground">{user?.email}</p>
+              <p className="text-sm text-muted-foreground capitalize">{user?.role || "Student"}</p>
             </div>
           </div>
         </GlassCard>
 
-        {/* Preferences */}
+        {/* Appearance */}
         <div className="mb-6">
           <h3 className="text-sm font-medium theme-text-muted uppercase tracking-wide mb-3 px-1">
-            Preferences
+            Appearance
           </h3>
           <GlassCard className="divide-y divide-border/50">
             <SettingRow
               icon={theme === "dark" ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
               title="Dark Mode"
-              description="Switch between light and dark themes"
+              description="Toggle dark/light theme"
               action={
                 <Switch
                   checked={theme === "dark"}
@@ -135,13 +136,10 @@ export default function Settings() {
             />
             <SettingRow
               icon={<Palette className="w-5 h-5" />}
-              title="University Theme"
-              description="Change app colors and gradient"
+              title="Theme"
+              description="Choose your school colors"
               action={
-                <Select 
-                  value={universityTheme} 
-                  onValueChange={(val) => setUniversityTheme(val as UniversityTheme)}
-                >
+                <Select value={universityTheme} onValueChange={(v) => setUniversityTheme(v as UniversityTheme)}>
                   <SelectTrigger className="w-32" data-testid="select-university-theme">
                     <SelectValue />
                   </SelectTrigger>
@@ -169,15 +167,17 @@ export default function Settings() {
               title="Current Semester"
               description={activeSemester?.name || "No semester set"}
               action={
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setShowNewSemesterModal(true)}
-                  data-testid="button-new-semester"
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  New
-                </Button>
+                isStudent ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowNewSemesterModal(true)}
+                    data-testid="button-new-semester"
+                  >
+                    <Plus className="w-4 h-4 mr-1" />
+                    New
+                  </Button>
+                ) : null
               }
             />
             <button 
@@ -218,27 +218,51 @@ export default function Settings() {
 
         {/* Goals */}
         <div className="mb-6">
-          <h3 className="text-sm font-medium theme-text-muted uppercase tracking-wide mb-3 px-1">
-            Goals
-          </h3>
+          <div className="flex items-center justify-between mb-3 px-1">
+            <h3 className="text-sm font-medium theme-text-muted uppercase tracking-wide">
+              Goals
+            </h3>
+            {isStudent && (
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setShowGoalsModal(true)}
+              >
+                <Edit2 className="w-4 h-4 mr-1" />
+                Edit
+              </Button>
+            )}
+          </div>
           <GlassCard className="divide-y divide-border/50">
             <SettingRow
               icon={<GraduationCap className="w-5 h-5" />}
               title="Degree Credits"
-              description="Total credits required for graduation"
-              value="60"
+              description="Total credits required"
+              value={`${settings?.totalCreditsRequired || 60}`}
             />
             <SettingRow
               icon={<Clock className="w-5 h-5" />}
               title="Daily Study Goal"
               description="Target study time per day"
-              value="60 min"
+              value={`${settings?.dailyStudyGoalMinutes || 60} min`}
             />
             <SettingRow
               icon={<Dumbbell className="w-5 h-5" />}
               title="Weekly Gym Sessions"
               description="Target gym sessions per week"
-              value="3"
+              value={`${settings?.weeklyGymGoal || 3}`}
+            />
+            <SettingRow
+              icon={<Droplets className="w-5 h-5" />}
+              title="Daily Water Goal"
+              description="Glasses of water per day"
+              value={`${settings?.dailyWaterGoal || 8}`}
+            />
+            <SettingRow
+              icon={<Moon className="w-5 h-5" />}
+              title="Sleep Goal"
+              description="Hours of sleep per night"
+              value={`${settings?.sleepGoalHours || 8}h`}
             />
           </GlassCard>
         </div>
@@ -252,49 +276,44 @@ export default function Settings() {
             <SettingRow
               icon={<Shield className="w-5 h-5" />}
               title="Privacy"
-              description="No surveillance, no tracking"
-              action={<ChevronRight className="w-5 h-5 text-muted-foreground" />}
+              description="Your data stays on your device"
             />
             <SettingRow
               icon={<HelpCircle className="w-5 h-5" />}
-              title="Help & Support"
-              description="Get help with the app"
-              action={<ChevronRight className="w-5 h-5 text-muted-foreground" />}
+              title="Version"
+              description="Family Academic Hub v1.0"
             />
           </GlassCard>
         </div>
 
-        {/* App Info */}
-        <div className="text-center py-4">
-          <p className="text-sm theme-text-muted">University App</p>
-          <p className="text-xs theme-text-muted">Version 1.0.0</p>
-        </div>
-
         {/* Sign Out */}
-        <Button
-          variant="ghost"
-          className="w-full rounded-full text-red-500 hover:text-red-600 hover:bg-red-500/10"
-          onClick={() => logout()}
-          data-testid="button-sign-out"
-        >
-          <LogOut className="w-5 h-5 mr-2" />
-          Sign Out
-        </Button>
+        <GlassCard className="mb-6">
+          <button
+            onClick={() => logout()}
+            className="flex items-center gap-3 w-full text-red-500"
+            data-testid="button-logout"
+          >
+            <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
+              <LogOut className="w-5 h-5" />
+            </div>
+            <span className="font-medium">Sign Out</span>
+          </button>
+        </GlassCard>
       </main>
 
       <BottomNav />
 
       {/* New Semester Modal */}
       <Dialog open={showNewSemesterModal} onOpenChange={setShowNewSemesterModal}>
-        <DialogContent>
+        <DialogContent className="glass-card">
           <DialogHeader>
             <DialogTitle>Start New Semester</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 pt-4">
-            <p className="text-muted-foreground text-sm">
-              Starting a new semester will archive your current progress and give you a fresh start.
+          <div className="space-y-4 pt-2">
+            <p className="text-sm text-muted-foreground">
+              This will archive your current classes and study sessions, giving you a fresh start.
             </p>
-            <div className="space-y-2">
+            <div>
               <Label htmlFor="semester-name">Semester Name</Label>
               <Input
                 id="semester-name"
@@ -323,7 +342,7 @@ export default function Settings() {
 
       {/* Archives Modal */}
       <Dialog open={showArchivesModal} onOpenChange={setShowArchivesModal}>
-        <DialogContent>
+        <DialogContent className="glass-card">
           <DialogHeader>
             <DialogTitle>Past Semesters</DialogTitle>
           </DialogHeader>
@@ -351,6 +370,24 @@ export default function Settings() {
               </p>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Goals Edit Modal */}
+      <Dialog open={showGoalsModal} onOpenChange={setShowGoalsModal}>
+        <DialogContent className="glass-card">
+          <DialogHeader>
+            <DialogTitle>Edit Goals</DialogTitle>
+          </DialogHeader>
+          <GoalsEditForm 
+            settings={settings}
+            onSave={async (updates) => {
+              await updateSettings(updates);
+              setShowGoalsModal(false);
+              toast({ title: "Goals updated!" });
+            }}
+            onClose={() => setShowGoalsModal(false)}
+          />
         </DialogContent>
       </Dialog>
     </div>
@@ -384,5 +421,102 @@ function SettingRow({ icon, title, description, value, action }: SettingRowProps
       )}
       {action}
     </div>
+  );
+}
+
+interface GoalsEditFormProps {
+  settings: any;
+  onSave: (updates: any) => Promise<void>;
+  onClose: () => void;
+}
+
+function GoalsEditForm({ settings, onSave, onClose }: GoalsEditFormProps) {
+  const [isPending, setIsPending] = useState(false);
+  const [formData, setFormData] = useState({
+    totalCreditsRequired: settings?.totalCreditsRequired?.toString() || "60",
+    dailyStudyGoalMinutes: settings?.dailyStudyGoalMinutes?.toString() || "60",
+    weeklyGymGoal: settings?.weeklyGymGoal?.toString() || "3",
+    dailyWaterGoal: settings?.dailyWaterGoal?.toString() || "8",
+    sleepGoalHours: settings?.sleepGoalHours?.toString() || "8",
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setIsPending(true);
+      await onSave({
+        totalCreditsRequired: parseInt(formData.totalCreditsRequired),
+        dailyStudyGoalMinutes: parseInt(formData.dailyStudyGoalMinutes),
+        weeklyGymGoal: parseInt(formData.weeklyGymGoal),
+        dailyWaterGoal: parseInt(formData.dailyWaterGoal),
+        sleepGoalHours: parseFloat(formData.sleepGoalHours),
+      });
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label>Total Credits</Label>
+          <Input
+            type="number"
+            min="1"
+            value={formData.totalCreditsRequired}
+            onChange={(e) => setFormData({ ...formData, totalCreditsRequired: e.target.value })}
+          />
+        </div>
+        <div>
+          <Label>Daily Study (min)</Label>
+          <Input
+            type="number"
+            min="1"
+            value={formData.dailyStudyGoalMinutes}
+            onChange={(e) => setFormData({ ...formData, dailyStudyGoalMinutes: e.target.value })}
+          />
+        </div>
+        <div>
+          <Label>Weekly Gym Sessions</Label>
+          <Input
+            type="number"
+            min="1"
+            max="7"
+            value={formData.weeklyGymGoal}
+            onChange={(e) => setFormData({ ...formData, weeklyGymGoal: e.target.value })}
+          />
+        </div>
+        <div>
+          <Label>Daily Water (glasses)</Label>
+          <Input
+            type="number"
+            min="1"
+            max="20"
+            value={formData.dailyWaterGoal}
+            onChange={(e) => setFormData({ ...formData, dailyWaterGoal: e.target.value })}
+          />
+        </div>
+        <div className="col-span-2">
+          <Label>Sleep Goal (hours)</Label>
+          <Input
+            type="number"
+            min="4"
+            max="12"
+            step="0.5"
+            value={formData.sleepGoalHours}
+            onChange={(e) => setFormData({ ...formData, sleepGoalHours: e.target.value })}
+          />
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" className="flex-1" disabled={isPending}>
+          {isPending ? "Saving..." : "Save Goals"}
+        </Button>
+      </div>
+    </form>
   );
 }

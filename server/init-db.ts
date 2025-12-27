@@ -208,9 +208,60 @@ CREATE TABLE IF NOT EXISTS user_settings (
   theme text DEFAULT 'dark',
   university_theme text DEFAULT 'uf',
   target_gpa real DEFAULT 3.5,
+  daily_water_goal integer DEFAULT 8,
+  sleep_goal_hours real DEFAULT 8,
   created_at timestamp DEFAULT now(),
   updated_at timestamp DEFAULT now()
 );
+
+-- New tables for enhanced features
+
+CREATE TABLE IF NOT EXISTS sleep_entries (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  student_id varchar NOT NULL,
+  date date NOT NULL DEFAULT now(),
+  bedtime text,
+  waketime text,
+  hours_slept real,
+  quality integer DEFAULT 3,
+  created_at timestamp DEFAULT now(),
+  updated_at timestamp DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS assignments (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  student_id varchar NOT NULL,
+  class_id varchar,
+  title text NOT NULL,
+  description text,
+  due_date timestamp NOT NULL,
+  completed boolean DEFAULT false,
+  priority text DEFAULT 'medium',
+  created_at timestamp DEFAULT now(),
+  updated_at timestamp DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS hydration_entries (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  student_id varchar NOT NULL,
+  date date NOT NULL DEFAULT now(),
+  glasses integer DEFAULT 0,
+  created_at timestamp DEFAULT now(),
+  updated_at timestamp DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS class_notes (
+  id varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  student_id varchar NOT NULL,
+  class_id varchar NOT NULL,
+  note text NOT NULL,
+  created_at timestamp DEFAULT now(),
+  updated_at timestamp DEFAULT now()
+);
+
+-- Add new columns to existing tables if they don't exist
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS daily_water_goal integer DEFAULT 8;
+ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS sleep_goal_hours real DEFAULT 8;
 `;
 
 export async function initDatabase() {

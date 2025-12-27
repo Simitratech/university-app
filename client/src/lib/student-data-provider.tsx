@@ -17,6 +17,10 @@ import {
   type StudentDataSemester,
   type StudentDataSemesterArchive,
   type StudentDataSettings,
+  type StudentDataSleepEntry,
+  type StudentDataAssignment,
+  type StudentDataHydrationEntry,
+  type StudentDataClassNote,
   createEmptyStudentData,
 } from "@shared/schema";
 
@@ -55,6 +59,18 @@ interface StudentDataContextType {
   setActiveSemester: (id: string) => Promise<void>;
   addSemesterArchive: (archive: Omit<StudentDataSemesterArchive, "id">) => Promise<void>;
   updateSettings: (updates: Partial<StudentDataSettings>) => Promise<void>;
+  // NEW: Sleep tracking
+  addSleepEntry: (entry: Omit<StudentDataSleepEntry, "id">) => Promise<void>;
+  updateSleepEntry: (id: string, updates: Partial<StudentDataSleepEntry>) => Promise<void>;
+  // NEW: Assignments
+  addAssignment: (assignment: Omit<StudentDataAssignment, "id">) => Promise<void>;
+  updateAssignment: (id: string, updates: Partial<StudentDataAssignment>) => Promise<void>;
+  deleteAssignment: (id: string) => Promise<void>;
+  // NEW: Hydration
+  updateHydration: (date: string, glasses: number) => Promise<void>;
+  // NEW: Class Notes
+  addClassNote: (note: Omit<StudentDataClassNote, "id" | "createdAt">) => Promise<void>;
+  deleteClassNote: (id: string) => Promise<void>;
 }
 
 const StudentDataContext = createContext<StudentDataContextType | null>(null);
@@ -117,8 +133,10 @@ export function StudentDataProvider({ children }: { children: ReactNode }) {
     const updated = {
       ...data,
       classes: data.classes.filter(c => c.id !== id),
+      // Also delete related exams, grading categories, and notes
       exams: data.exams.filter(e => e.classId !== id),
-      gradingCategories: data.gradingCategories.filter(gc => gc.classId !== id),
+      gradingCategories: data.gradingCategories.filter(g => g.classId !== id),
+      classNotes: (data.classNotes || []).filter(n => n.classId !== id),
     };
     await saveStudentData(updated);
   }, [getStudentData, saveStudentData]);
@@ -156,14 +174,14 @@ export function StudentDataProvider({ children }: { children: ReactNode }) {
     const data = getStudentData();
     const updated = {
       ...data,
-      gradingCategories: data.gradingCategories.map(gc => gc.id === id ? { ...gc, ...updates } : gc),
+      gradingCategories: data.gradingCategories.map(g => g.id === id ? { ...g, ...updates } : g),
     };
     await saveStudentData(updated);
   }, [getStudentData, saveStudentData]);
 
   const deleteGradingCategory = useCallback(async (id: string) => {
     const data = getStudentData();
-    const updated = { ...data, gradingCategories: data.gradingCategories.filter(gc => gc.id !== id) };
+    const updated = { ...data, gradingCategories: data.gradingCategories.filter(g => g.id !== id) };
     await saveStudentData(updated);
   }, [getStudentData, saveStudentData]);
 
@@ -276,9 +294,8 @@ export function StudentDataProvider({ children }: { children: ReactNode }) {
     const updated = {
       ...data,
       emergencyFund: {
-        ...data.emergencyFund,
         currentAmount: amount,
-        ...(targetMonths !== undefined && { targetMonths }),
+        targetMonths: targetMonths ?? data.emergencyFund.targetMonths,
       },
     };
     await saveStudentData(updated);
@@ -299,8 +316,8 @@ export function StudentDataProvider({ children }: { children: ReactNode }) {
   const deleteEmergencyFundContribution = useCallback(async (id: string) => {
     const data = getStudentData();
     const contribution = data.emergencyFundContributions.find(c => c.id === id);
-    const newAmount = contribution 
-      ? data.emergencyFund.currentAmount - contribution.amount 
+    const newAmount = contribution
+      ? data.emergencyFund.currentAmount - contribution.amount
       : data.emergencyFund.currentAmount;
     const updated = {
       ...data,
@@ -354,6 +371,97 @@ export function StudentDataProvider({ children }: { children: ReactNode }) {
     await saveStudentData(updated);
   }, [getStudentData, saveStudentData]);
 
+  // NEW: Sleep Entry functions
+  const addSleepEntry = useCallback(async (entry: Omit<StudentDataSleepEntry, "id">) => {
+    const data = getStudentData();
+    // Check if entry for this date already exists
+    const existingIndex = (data.sleepEntries || []).findIndex(s => s.date === entry.date);
+    let sleepEntries: StudentDataSleepEntry[];
+    
+    if (existingIndex >= 0) {
+      // Update existing entry
+      sleepEntries = data.sleepEntries.map((s, i) => 
+        i === existingIndex ? { ...s, ...entry } : s
+      );
+    } else {
+      // Add new entry
+      const newEntry: StudentDataSleepEntry = { ...entry, id: generateId() };
+      sleepEntries = [...(data.sleepEntries || []), newEntry];
+    }
+    
+    const updated = { ...data, sleepEntries };
+    await saveStudentData(updated);
+  }, [getStudentData, saveStudentData]);
+
+  const updateSleepEntry = useCallback(async (id: string, updates: Partial<StudentDataSleepEntry>) => {
+    const data = getStudentData();
+    const updated = {
+      ...data,
+      sleepEntries: (data.sleepEntries || []).map(s => s.id === id ? { ...s, ...updates } : s),
+    };
+    await saveStudentData(updated);
+  }, [getStudentData, saveStudentData]);
+
+  // NEW: Assignment functions
+  const addAssignment = useCallback(async (assignment: Omit<StudentDataAssignment, "id">) => {
+    const data = getStudentData();
+    const newAssignment: StudentDataAssignment = { ...assignment, id: generateId() };
+    const updated = { ...data, assignments: [...(data.assignments || []), newAssignment] };
+    await saveStudentData(updated);
+  }, [getStudentData, saveStudentData]);
+
+  const updateAssignment = useCallback(async (id: string, updates: Partial<StudentDataAssignment>) => {
+    const data = getStudentData();
+    const updated = {
+      ...data,
+      assignments: (data.assignments || []).map(a => a.id === id ? { ...a, ...updates } : a),
+    };
+    await saveStudentData(updated);
+  }, [getStudentData, saveStudentData]);
+
+  const deleteAssignment = useCallback(async (id: string) => {
+    const data = getStudentData();
+    const updated = { ...data, assignments: (data.assignments || []).filter(a => a.id !== id) };
+    await saveStudentData(updated);
+  }, [getStudentData, saveStudentData]);
+
+  // NEW: Hydration functions
+  const updateHydration = useCallback(async (date: string, glasses: number) => {
+    const data = getStudentData();
+    const existingIndex = (data.hydrationEntries || []).findIndex(h => h.date === date);
+    let hydrationEntries: StudentDataHydrationEntry[];
+    
+    if (existingIndex >= 0) {
+      hydrationEntries = data.hydrationEntries.map((h, i) => 
+        i === existingIndex ? { ...h, glasses } : h
+      );
+    } else {
+      const newEntry: StudentDataHydrationEntry = { id: generateId(), date, glasses };
+      hydrationEntries = [...(data.hydrationEntries || []), newEntry];
+    }
+    
+    const updated = { ...data, hydrationEntries };
+    await saveStudentData(updated);
+  }, [getStudentData, saveStudentData]);
+
+  // NEW: Class Notes functions
+  const addClassNote = useCallback(async (note: Omit<StudentDataClassNote, "id" | "createdAt">) => {
+    const data = getStudentData();
+    const newNote: StudentDataClassNote = { 
+      ...note, 
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    const updated = { ...data, classNotes: [...(data.classNotes || []), newNote] };
+    await saveStudentData(updated);
+  }, [getStudentData, saveStudentData]);
+
+  const deleteClassNote = useCallback(async (id: string) => {
+    const data = getStudentData();
+    const updated = { ...data, classNotes: (data.classNotes || []).filter(n => n.id !== id) };
+    await saveStudentData(updated);
+  }, [getStudentData, saveStudentData]);
+
   const value: StudentDataContextType = {
     studentData: studentData || null,
     isLoading,
@@ -389,6 +497,15 @@ export function StudentDataProvider({ children }: { children: ReactNode }) {
     setActiveSemester,
     addSemesterArchive,
     updateSettings,
+    // NEW
+    addSleepEntry,
+    updateSleepEntry,
+    addAssignment,
+    updateAssignment,
+    deleteAssignment,
+    updateHydration,
+    addClassNote,
+    deleteClassNote,
   };
 
   return (

@@ -86,10 +86,12 @@ export async function setupAuth(app: Express) {
       let user = await authStorage.getUserByName(trimmedName);
       
       if (user) {
-        // Existing user found - ensure they have studentId attached
+        // Existing user found - update role and ensure they have studentId attached
+        const updates: any = { role };
         if (!user.studentId && student) {
-          user = await authStorage.updateUser(user.id, { studentId: student.id });
+          updates.studentId = student.id;
         }
+        user = await authStorage.updateUser(user.id, updates);
       } else {
         // Create new user with selected role, attached to the student
         const uniqueId = `${trimmedName.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}@app.local`;

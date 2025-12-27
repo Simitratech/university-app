@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { useStudentData } from "@/lib/student-data-provider";
 import type { StudentDataExpense, StudentDataIncomeEntry, StudentDataCreditCard, StudentDataEmergencyFundContribution } from "@shared/schema";
 import { DollarSign, Plus, CreditCard, TrendingUp, TrendingDown, PiggyBank, AlertTriangle, Check, Trash2 } from "lucide-react";
@@ -40,6 +41,8 @@ const getCategoryColor = (category: string): string => {
 
 export default function Money() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isStudent = user?.role === "student";
   const [addType, setAddType] = useState<"income" | "expense" | "card" | "contribution" | null>(null);
   const { 
     studentData, 
@@ -132,15 +135,17 @@ export default function Money() {
               <PiggyBank className="w-5 h-5 text-primary" />
               <h3 className="font-semibold">Emergency Fund</h3>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setAddType("contribution")}
-              data-testid="button-add-contribution"
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              Add
-            </Button>
+            {isStudent && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setAddType("contribution")}
+                data-testid="button-add-contribution"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Add
+              </Button>
+            )}
           </div>
           <Progress value={emergencyProgress} className="h-3 mb-2" />
           <div className="flex justify-between text-sm">
@@ -199,18 +204,20 @@ export default function Money() {
           <TabsContent value="expenses" className="mt-4 space-y-3">
             <div className="flex justify-between items-center mb-2">
               <h4 className="font-medium">This Month's Expenses</h4>
-              <Button variant="outline" size="sm" onClick={() => setAddType("expense")} data-testid="button-add-expense-inline">
-                <Plus className="w-4 h-4 mr-1" />
-                Add
-              </Button>
+              {isStudent && (
+                <Button variant="outline" size="sm" onClick={() => setAddType("expense")} data-testid="button-add-expense-inline">
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add
+                </Button>
+              )}
             </div>
 
             {expensesData?.length === 0 ? (
               <EmptyState
                 icon={<DollarSign className="w-8 h-8" />}
                 title="No expenses yet"
-                description="Track your spending by adding expenses"
-                action={{ label: "Add Expense", onClick: () => setAddType("expense") }}
+                description={isStudent ? "Track your spending by adding expenses" : "No expenses recorded this month"}
+                action={isStudent ? { label: "Add Expense", onClick: () => setAddType("expense") } : undefined}
               />
             ) : (
               expensesData?.map((expense) => (
@@ -262,18 +269,20 @@ export default function Money() {
           <TabsContent value="income" className="mt-4">
             <div className="flex justify-between items-center mb-4">
               <h4 className="font-medium">Income Entries</h4>
-              <Button variant="outline" size="sm" onClick={() => setAddType("income")} data-testid="button-add-income">
-                <Plus className="w-4 h-4 mr-1" />
-                Add
-              </Button>
+              {isStudent && (
+                <Button variant="outline" size="sm" onClick={() => setAddType("income")} data-testid="button-add-income">
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add
+                </Button>
+              )}
             </div>
 
             {(!incomeEntries || incomeEntries.length === 0) ? (
               <EmptyState
                 icon={<TrendingUp className="w-8 h-8" />}
                 title="No income yet"
-                description="Add your income sources"
-                action={{ label: "Add Income", onClick: () => setAddType("income") }}
+                description={isStudent ? "Add your income sources" : "No income recorded this month"}
+                action={isStudent ? { label: "Add Income", onClick: () => setAddType("income") } : undefined}
               />
             ) : (
               <div className="space-y-3">
@@ -291,17 +300,19 @@ export default function Money() {
           <TabsContent value="cards" className="mt-4 space-y-3">
             <div className="flex justify-between items-center mb-2">
               <h4 className="font-medium">Credit Cards</h4>
-              <Button variant="outline" size="sm" onClick={() => setAddType("card")} data-testid="button-add-card-inline">
-                <Plus className="w-4 h-4 mr-1" />
-                Add
-              </Button>
+              {isStudent && (
+                <Button variant="outline" size="sm" onClick={() => setAddType("card")} data-testid="button-add-card-inline">
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add
+                </Button>
+              )}
             </div>
             {creditCards?.length === 0 ? (
               <EmptyState
                 icon={<CreditCard className="w-8 h-8" />}
                 title="No credit cards"
-                description="Add your credit cards to track payments"
-                action={{ label: "Add Card", onClick: () => setAddType("card") }}
+                description={isStudent ? "Add your credit cards to track payments" : "No credit cards added"}
+                action={isStudent ? { label: "Add Card", onClick: () => setAddType("card") } : undefined}
               />
             ) : (
               creditCards?.map((card) => (
@@ -316,29 +327,31 @@ export default function Money() {
         </Tabs>
       </main>
 
-      <Dialog open={addType !== null} onOpenChange={() => setAddType(null)}>
-        <DialogContent className="glass-card">
-          <DialogHeader>
-            <DialogTitle>
-              {addType === "expense" ? "Add Expense" : 
-               addType === "income" ? "Add Income" : 
-               addType === "contribution" ? "Add Contribution" :
-               "Add Card"}
-            </DialogTitle>
-          </DialogHeader>
-          {addType === "expense" && <AddExpenseForm onClose={() => setAddType(null)} addExpense={addExpense} />}
-          {addType === "income" && <AddIncomeForm onClose={() => setAddType(null)} addIncomeEntry={addIncomeEntry} />}
-          {addType === "contribution" && (
-            <AddContributionForm 
-              onClose={() => setAddType(null)} 
-              addEmergencyFundContribution={addEmergencyFundContribution} 
-              updateEmergencyFund={updateEmergencyFund} 
-              emergencyFund={emergencyFund} 
-            />
-          )}
-          {addType === "card" && <AddCardForm onClose={() => setAddType(null)} addCreditCard={addCreditCard} />}
-        </DialogContent>
-      </Dialog>
+      {isStudent && (
+        <Dialog open={addType !== null} onOpenChange={() => setAddType(null)}>
+          <DialogContent className="glass-card">
+            <DialogHeader>
+              <DialogTitle>
+                {addType === "expense" ? "Add Expense" : 
+                 addType === "income" ? "Add Income" : 
+                 addType === "contribution" ? "Add Contribution" :
+                 "Add Card"}
+              </DialogTitle>
+            </DialogHeader>
+            {addType === "expense" && <AddExpenseForm onClose={() => setAddType(null)} addExpense={addExpense} />}
+            {addType === "income" && <AddIncomeForm onClose={() => setAddType(null)} addIncomeEntry={addIncomeEntry} />}
+            {addType === "contribution" && (
+              <AddContributionForm 
+                onClose={() => setAddType(null)} 
+                addEmergencyFundContribution={addEmergencyFundContribution} 
+                updateEmergencyFund={updateEmergencyFund} 
+                emergencyFund={emergencyFund} 
+              />
+            )}
+            {addType === "card" && <AddCardForm onClose={() => setAddType(null)} addCreditCard={addCreditCard} />}
+          </DialogContent>
+        </Dialog>
+      )}
 
       <BottomNav />
     </div>

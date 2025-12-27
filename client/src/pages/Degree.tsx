@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useStudentData } from "@/lib/student-data-provider";
 import { Plus, BookOpen, Check, Clock, AlertCircle, X, Trash2, Target, GraduationCap, AlertTriangle } from "lucide-react";
@@ -65,6 +66,8 @@ function calculateOverallGpa(classes: StudentDataClass[]): number {
 
 export default function Degree() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isStudent = user?.role === "student";
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [localTargetGpa, setLocalTargetGpa] = useState<string>("");
   const [isAddPending, setIsAddPending] = useState(false);
@@ -301,26 +304,28 @@ export default function Degree() {
           />
         )}
 
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger asChild>
-            <Button
-              className="fixed bottom-24 right-4 w-14 h-14 rounded-full shadow-lg"
-              size="icon"
-              data-testid="button-add-class"
-            >
-              <Plus className="w-6 h-6" />
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="glass-card">
-            <DialogHeader>
-              <DialogTitle>Add Class</DialogTitle>
-            </DialogHeader>
-            <AddClassForm
-              onSubmit={handleAddClass}
-              isLoading={isAddPending}
-            />
-          </DialogContent>
-        </Dialog>
+        {isStudent && (
+          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+            <DialogTrigger asChild>
+              <Button
+                className="fixed bottom-24 right-4 w-14 h-14 rounded-full shadow-lg"
+                size="icon"
+                data-testid="button-add-class"
+              >
+                <Plus className="w-6 h-6" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="glass-card">
+              <DialogHeader>
+                <DialogTitle>Add Class</DialogTitle>
+              </DialogHeader>
+              <AddClassForm
+                onSubmit={handleAddClass}
+                isLoading={isAddPending}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
       </main>
 
       <BottomNav />

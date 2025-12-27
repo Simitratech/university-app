@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { useStudentData } from "@/lib/student-data-provider";
 import { Dumbbell, Smile, Plus, Calendar, Target, Footprints, Heart } from "lucide-react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
@@ -20,6 +21,8 @@ import { getDailyCoachMessage } from "@/lib/coach-messages";
 
 export default function Wellness() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isStudent = user?.role === "student";
   const [showAddGym, setShowAddGym] = useState(false);
   const [showAddHappiness, setShowAddHappiness] = useState(false);
   const { studentData, isLoading, addGymSession, addHappinessEntry } = useStudentData();
@@ -219,35 +222,39 @@ export default function Wellness() {
           </TabsContent>
         </Tabs>
 
-        {/* Add Gym Button */}
-        <Button
-          className="fixed bottom-24 right-4 w-14 h-14 rounded-full shadow-lg"
-          size="icon"
-          onClick={() => setShowAddGym(true)}
-          data-testid="button-add-gym"
-        >
-          <Plus className="w-6 h-6" />
-        </Button>
+        {/* Add Gym Button - Students only */}
+        {isStudent && (
+          <>
+            <Button
+              className="fixed bottom-24 right-4 w-14 h-14 rounded-full shadow-lg"
+              size="icon"
+              onClick={() => setShowAddGym(true)}
+              data-testid="button-add-gym"
+            >
+              <Plus className="w-6 h-6" />
+            </Button>
 
-        {/* Add Gym Dialog */}
-        <Dialog open={showAddGym} onOpenChange={setShowAddGym}>
-          <DialogContent className="glass-card">
-            <DialogHeader>
-              <DialogTitle>Log Workout</DialogTitle>
-            </DialogHeader>
-            <AddGymForm onClose={() => setShowAddGym(false)} addGymSession={addGymSession} />
-          </DialogContent>
-        </Dialog>
+            {/* Add Gym Dialog */}
+            <Dialog open={showAddGym} onOpenChange={setShowAddGym}>
+              <DialogContent className="glass-card">
+                <DialogHeader>
+                  <DialogTitle>Log Workout</DialogTitle>
+                </DialogHeader>
+                <AddGymForm onClose={() => setShowAddGym(false)} addGymSession={addGymSession} />
+              </DialogContent>
+            </Dialog>
 
-        {/* Add Happiness Dialog */}
-        <Dialog open={showAddHappiness} onOpenChange={setShowAddHappiness}>
-          <DialogContent className="glass-card">
-            <DialogHeader>
-              <DialogTitle>What made you happy today?</DialogTitle>
-            </DialogHeader>
-            <AddHappinessForm onClose={() => setShowAddHappiness(false)} addHappinessEntry={addHappinessEntry} />
-          </DialogContent>
-        </Dialog>
+            {/* Add Happiness Dialog */}
+            <Dialog open={showAddHappiness} onOpenChange={setShowAddHappiness}>
+              <DialogContent className="glass-card">
+                <DialogHeader>
+                  <DialogTitle>What made you happy today?</DialogTitle>
+                </DialogHeader>
+                <AddHappinessForm onClose={() => setShowAddHappiness(false)} addHappinessEntry={addHappinessEntry} />
+              </DialogContent>
+            </Dialog>
+          </>
+        )}
       </main>
 
       <BottomNav />

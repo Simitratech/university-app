@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 import { useStudentData } from "@/lib/student-data-provider";
 import { Clock, BookOpen, TrendingUp, Calendar, Trash2, AlertTriangle, Users, Dumbbell, Smile } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -19,6 +20,8 @@ import type { StudentDataClass } from "@shared/schema";
 
 export default function Study() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isStudent = user?.role === "student";
   const [selectedClassId, setSelectedClassId] = useState<string>("none");
   const { studentData, isLoading, addStudySession, deleteStudySession } = useStudentData();
 
@@ -191,19 +194,31 @@ export default function Study() {
               </GlassCard>
             )}
 
-            {/* Solo Timer (Pomodoro) */}
-            <GlassCard className="py-8">
-              <div className="flex items-center justify-center gap-2 mb-4 text-blue-500">
-                <BookOpen className="w-5 h-5" />
-                <span className="font-medium">Solo Study (Pomodoro)</span>
-              </div>
-              <PomodoroTimer onSessionComplete={handleSessionComplete} />
-            </GlassCard>
+            {/* Solo Timer (Pomodoro) - Students only */}
+            {isStudent ? (
+              <>
+                <GlassCard className="py-8">
+                  <div className="flex items-center justify-center gap-2 mb-4 text-blue-500">
+                    <BookOpen className="w-5 h-5" />
+                    <span className="font-medium">Solo Study (Pomodoro)</span>
+                  </div>
+                  <PomodoroTimer onSessionComplete={handleSessionComplete} />
+                </GlassCard>
 
-            {/* Study Group Timer */}
-            <GlassCard className="py-6 mt-4">
-              <StudyGroupTimer onSessionComplete={handleGroupSessionComplete} />
-            </GlassCard>
+                {/* Study Group Timer */}
+                <GlassCard className="py-6 mt-4">
+                  <StudyGroupTimer onSessionComplete={handleGroupSessionComplete} />
+                </GlassCard>
+              </>
+            ) : (
+              <GlassCard className="py-8">
+                <div className="text-center text-muted-foreground">
+                  <Clock className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p className="font-medium">View Only Mode</p>
+                  <p className="text-sm mt-1">Parents can view study history but cannot start sessions</p>
+                </div>
+              </GlassCard>
+            )}
 
             {/* Upcoming Exams */}
             {upcomingExams.length > 0 && (

@@ -210,6 +210,45 @@ export const insertDailyTrackingSchema = createInsertSchema(dailyTracking).omit(
 export type InsertDailyTracking = z.infer<typeof insertDailyTrackingSchema>;
 export type DailyTracking = typeof dailyTracking.$inferSelect;
 
+// ============== BREAKS MODULE ==============
+export const breaks = pgTable("breaks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  studentId: varchar("student_id").notNull(),
+  name: text("name").notNull(),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+});
+
+export const insertBreakSchema = createInsertSchema(breaks).omit({ id: true });
+export type InsertBreak = z.infer<typeof insertBreakSchema>;
+export type Break = typeof breaks.$inferSelect;
+
+// ============== TRANSFER TARGETS ==============
+export const transferTargets = pgTable("transfer_targets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  studentId: varchar("student_id").notNull(),
+  universityName: text("university_name").notNull(),
+  requiredCredits: integer("required_credits").notNull(),
+  minimumGpa: real("minimum_gpa"),
+});
+
+export const insertTransferTargetSchema = createInsertSchema(transferTargets).omit({ id: true });
+export type InsertTransferTarget = z.infer<typeof insertTransferTargetSchema>;
+export type TransferTarget = typeof transferTargets.$inferSelect;
+
+// ============== AUDIT LOG ==============
+export const auditLog = pgTable("audit_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userEmail: text("user_email").notNull(),
+  action: text("action").notNull(),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  details: text("details"),
+});
+
+export const insertAuditLogSchema = createInsertSchema(auditLog).omit({ id: true, timestamp: true });
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type AuditLog = typeof auditLog.$inferSelect;
+
 // ============== SEMESTERS ==============
 export const semesters = pgTable("semesters", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

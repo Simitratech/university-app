@@ -8,32 +8,14 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 CREATE INDEX IF NOT EXISTS IDX_session_expire ON sessions (expire);
 
-DROP TABLE IF EXISTS students CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
-DROP TABLE IF EXISTS classes CASCADE;
-DROP TABLE IF EXISTS exams CASCADE;
-DROP TABLE IF EXISTS grading_categories CASCADE;
-DROP TABLE IF EXISTS study_sessions CASCADE;
-DROP TABLE IF EXISTS gym_sessions CASCADE;
-DROP TABLE IF EXISTS happiness_entries CASCADE;
-DROP TABLE IF EXISTS daily_tracking CASCADE;
-DROP TABLE IF EXISTS expenses CASCADE;
-DROP TABLE IF EXISTS income_entries CASCADE;
-DROP TABLE IF EXISTS credit_cards CASCADE;
-DROP TABLE IF EXISTS emergency_fund CASCADE;
-DROP TABLE IF EXISTS emergency_fund_contributions CASCADE;
-DROP TABLE IF EXISTS semesters CASCADE;
-DROP TABLE IF EXISTS semester_archives CASCADE;
-DROP TABLE IF EXISTS user_settings CASCADE;
-
-CREATE TABLE students (
+CREATE TABLE IF NOT EXISTS students (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
   name text NOT NULL,
   created_at timestamp DEFAULT now(),
   updated_at timestamp DEFAULT now()
 );
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
   email text NOT NULL UNIQUE,
   first_name text,
@@ -45,7 +27,7 @@ CREATE TABLE users (
   updated_at timestamp DEFAULT now()
 );
 
-CREATE TABLE classes (
+CREATE TABLE IF NOT EXISTS classes (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
   student_id varchar NOT NULL,
   course_name text NOT NULL,
@@ -63,7 +45,7 @@ CREATE TABLE classes (
   updated_at timestamp DEFAULT now()
 );
 
-CREATE TABLE exams (
+CREATE TABLE IF NOT EXISTS exams (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
   student_id varchar NOT NULL,
   class_id varchar,
@@ -81,7 +63,7 @@ CREATE TABLE exams (
   updated_at timestamp DEFAULT now()
 );
 
-CREATE TABLE grading_categories (
+CREATE TABLE IF NOT EXISTS grading_categories (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
   student_id varchar NOT NULL,
   class_id varchar NOT NULL,
@@ -91,7 +73,7 @@ CREATE TABLE grading_categories (
   updated_at timestamp DEFAULT now()
 );
 
-CREATE TABLE study_sessions (
+CREATE TABLE IF NOT EXISTS study_sessions (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
   student_id varchar NOT NULL,
   class_id varchar,
@@ -104,7 +86,7 @@ CREATE TABLE study_sessions (
   updated_at timestamp DEFAULT now()
 );
 
-CREATE TABLE gym_sessions (
+CREATE TABLE IF NOT EXISTS gym_sessions (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
   student_id varchar NOT NULL,
   date timestamp NOT NULL DEFAULT now(),
@@ -115,7 +97,7 @@ CREATE TABLE gym_sessions (
   updated_at timestamp DEFAULT now()
 );
 
-CREATE TABLE happiness_entries (
+CREATE TABLE IF NOT EXISTS happiness_entries (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
   student_id varchar NOT NULL,
   date date NOT NULL DEFAULT now(),
@@ -124,7 +106,7 @@ CREATE TABLE happiness_entries (
   updated_at timestamp DEFAULT now()
 );
 
-CREATE TABLE daily_tracking (
+CREATE TABLE IF NOT EXISTS daily_tracking (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
   student_id varchar NOT NULL,
   date date NOT NULL DEFAULT now(),
@@ -135,7 +117,7 @@ CREATE TABLE daily_tracking (
   updated_at timestamp DEFAULT now()
 );
 
-CREATE TABLE expenses (
+CREATE TABLE IF NOT EXISTS expenses (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
   student_id varchar NOT NULL,
   month text NOT NULL,
@@ -148,7 +130,7 @@ CREATE TABLE expenses (
   updated_at timestamp DEFAULT now()
 );
 
-CREATE TABLE income_entries (
+CREATE TABLE IF NOT EXISTS income_entries (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
   student_id varchar NOT NULL,
   amount real NOT NULL,
@@ -159,7 +141,7 @@ CREATE TABLE income_entries (
   updated_at timestamp DEFAULT now()
 );
 
-CREATE TABLE credit_cards (
+CREATE TABLE IF NOT EXISTS credit_cards (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
   student_id varchar NOT NULL,
   card_name text NOT NULL,
@@ -170,7 +152,7 @@ CREATE TABLE credit_cards (
   updated_at timestamp DEFAULT now()
 );
 
-CREATE TABLE emergency_fund (
+CREATE TABLE IF NOT EXISTS emergency_fund (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
   student_id varchar NOT NULL,
   current_amount real DEFAULT 0,
@@ -179,7 +161,7 @@ CREATE TABLE emergency_fund (
   updated_at timestamp DEFAULT now()
 );
 
-CREATE TABLE emergency_fund_contributions (
+CREATE TABLE IF NOT EXISTS emergency_fund_contributions (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
   student_id varchar NOT NULL,
   amount real NOT NULL,
@@ -189,7 +171,7 @@ CREATE TABLE emergency_fund_contributions (
   updated_at timestamp DEFAULT now()
 );
 
-CREATE TABLE semesters (
+CREATE TABLE IF NOT EXISTS semesters (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
   student_id varchar NOT NULL,
   name text NOT NULL,
@@ -201,7 +183,7 @@ CREATE TABLE semesters (
   updated_at timestamp DEFAULT now()
 );
 
-CREATE TABLE semester_archives (
+CREATE TABLE IF NOT EXISTS semester_archives (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
   student_id varchar NOT NULL,
   semester_id varchar NOT NULL,
@@ -216,7 +198,7 @@ CREATE TABLE semester_archives (
   updated_at timestamp DEFAULT now()
 );
 
-CREATE TABLE user_settings (
+CREATE TABLE IF NOT EXISTS user_settings (
   id varchar PRIMARY KEY DEFAULT gen_random_uuid()::text,
   student_id varchar NOT NULL UNIQUE,
   total_credits_required integer DEFAULT 60,
@@ -235,7 +217,7 @@ export async function initDatabase() {
   try {
     console.log("Initializing database tables...");
     await pool.query(createTablesSQL);
-    console.log("Database tables created successfully!");
+    console.log("Database tables created/verified successfully!");
   } catch (error) {
     console.error("Error creating tables:", error);
     throw error;

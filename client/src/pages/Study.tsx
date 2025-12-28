@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useStudentData } from "@/lib/student-data-provider";
-import { GlassCard } from "@/components/ui/glass-card";
+import { GlassCard } from "@/components/GlassCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

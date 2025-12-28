@@ -1,418 +1,392 @@
 import { useState } from "react";
-import { Header } from "@/components/Header";
-import { BottomNav } from "@/components/BottomNav";
-import { GlassCard, StatCard } from "@/components/GlassCard";
-import { PomodoroTimer } from "@/components/PomodoroTimer";
-import { StudyGroupTimer } from "@/components/StudyGroupTimer";
-import { Assignments } from "@/components/Assignments";
-import { EmptyState, LoadingState } from "@/components/EmptyState";
+import { useStudentData } from "@/lib/student-data-provider";
+import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { BottomNav } from "@/components/BottomNav";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/use-auth";
-import { useStudentData } from "@/lib/student-data-provider";
-import { Clock, BookOpen, TrendingUp, Calendar, Trash2, AlertTriangle, Users, Flame, CheckSquare } from "lucide-react";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subDays, eachDayOfInterval, differenceInDays } from "date-fns";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { getDailyCoachMessage, getExamCoachMessage } from "@/lib/coach-messages";
-import type { StudentDataClass } from "@shared/schema";
+import { format, differenceInDays, differenceInHours, isPast, isToday, isTomorrow } from "date-fns";
+import { 
+  BookOpen, 
+  Plus, 
+  Clock, 
+  Users, 
+  User, 
+  AlertTriangle,
+  CheckCircle,
+  Bell,
+  FileText,
+  GraduationCap,
+  TrendingUp,
+  Trash2
+} from "lucide-react";
 
 export default function Study() {
   const { toast } = useToast();
-  const { user } = useAuth();
-  const isStudent = user?.role === "student";
-  const [selectedClassId, setSelectedClassId] = useState<string>("none");
-  const [activeTab, setActiveTab] = useState("timer");
   const { 
     studentData, 
-    isLoading, 
-    addStudySession, 
+    addStudySession,
     deleteStudySession,
-    addAssignment,
-    updateAssignment,
-    deleteAssignment,
+    updateAssignment
   } = useStudentData();
+  
+  const [showLogModal, setShowLogModal] = useState(false);
+  const [minutes, setMinutes] = useState("25");
+  const [sessionType, setSessionType] = useState<"solo" | "group">("solo");
+  const [selectedClass, setSelectedClass] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const classes = studentData?.classes || [];
   const exams = studentData?.exams || [];
-  const sessions = studentData?.studySessions || [];
   const assignments = studentData?.assignments || [];
+  const studySessions = studentData?.studySessions || [];
+  const settings = studentData?.settings;
 
-  const handleSessionComplete = async (duration: number) => {
-    try {
-      await addStudySession({
-        classId: selectedClassId === "none" ? null : selectedClassId,
-        durationMinutes: duration,
-        focusDuration: 25,
-        breakDuration: 5,
-        sessionType: "solo",
-        date: new Date().toISOString(),
-      });
-      toast({ title: "Study session saved!" });
-    } catch {
-      toast({ title: "Failed to save session", variant: "destructive" });
-    }
-  };
-
-  const handleGroupSessionComplete = async (duration: number) => {
-    try {
-      await addStudySession({
-        classId: selectedClassId === "none" ? null : selectedClassId,
-        durationMinutes: duration,
-        focusDuration: 0,
-        breakDuration: 0,
-        sessionType: "group",
-        date: new Date().toISOString(),
-      });
-      toast({ title: "Study session saved!" });
-    } catch {
-      toast({ title: "Failed to save session", variant: "destructive" });
-    }
-  };
-
-  // Calculate study streak
-  const studyStreak = (() => {
-    let streak = 0;
-    const sortedDates = [...new Set(sessions.map(s => s.date.split('T')[0]))].sort().reverse();
-    
-    if (sortedDates.length === 0) return 0;
-    
-    const todayStr = format(new Date(), "yyyy-MM-dd");
-    const yesterdayStr = format(subDays(new Date(), 1), "yyyy-MM-dd");
-    
-    let checkDate = sortedDates[0] === todayStr ? new Date() : 
-                    sortedDates[0] === yesterdayStr ? subDays(new Date(), 1) : null;
-    
-    if (!checkDate) return 0;
-    
-    for (let i = 0; i < 365; i++) {
-      const dateStr = format(subDays(checkDate, i), "yyyy-MM-dd");
-      if (sortedDates.includes(dateStr)) {
-        streak++;
-      } else if (i > 0) {
-        break;
-      }
-    }
-    
-    return streak;
-  })();
-
-  // Calculate stats
-  const now = new Date();
-  const weekStart = startOfWeek(now);
-  const weekEnd = endOfWeek(now);
-  const today = format(now, "yyyy-MM-dd");
-
-  const weekSessions = sessions?.filter((s) => {
-    const d = new Date(s.date);
-    return d >= weekStart && d <= weekEnd;
-  }) || [];
-
-  const todaySessions = sessions?.filter((s) => s.date.startsWith(today)) || [];
-  const todayMinutes = todaySessions.reduce((sum, s) => sum + s.durationMinutes, 0);
-  const weeklyMinutes = weekSessions.reduce((sum, s) => sum + s.durationMinutes, 0);
-  const weeklyHours = Math.round(weeklyMinutes / 60 * 10) / 10;
-
-  // Upcoming exams
+  // Get upcoming exams (next 14 days)
   const upcomingExams = exams
-    ?.filter((e) => new Date(e.examDate) >= new Date())
-    .sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime())
-    .slice(0, 3) || [];
+    .filter(e => {
+      const examDate = new Date(e.examDate);
+      const daysUntil = differenceInDays(examDate, new Date());
+      return daysUntil >= 0 && daysUntil <= 14;
+    })
+    .sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime());
 
-  // Pending assignments
-  const pendingAssignments = assignments?.filter(a => !a.completed).length || 0;
+  // Get upcoming assignments (not completed, due within 7 days)
+  const upcomingAssignments = assignments
+    .filter(a => {
+      if (a.completed) return false;
+      const dueDate = new Date(a.dueDate);
+      const daysUntil = differenceInDays(dueDate, new Date());
+      return daysUntil <= 7;
+    })
+    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
-  // Daily chart data
-  const last7Days = eachDayOfInterval({
-    start: subDays(now, 6),
-    end: now,
-  });
+  // Calculate study stats
+  const todaySessions = studySessions.filter(s => 
+    format(new Date(s.date), "yyyy-MM-dd") === format(new Date(), "yyyy-MM-dd")
+  );
+  const todayMinutes = todaySessions.reduce((sum, s) => sum + s.durationMinutes, 0);
+  const dailyGoal = settings?.dailyStudyGoalMinutes || 60;
+  const goalProgress = Math.min(100, (todayMinutes / dailyGoal) * 100);
 
-  const chartData = last7Days.map((day) => {
-    const dateStr = format(day, "yyyy-MM-dd");
-    const dayMinutes = sessions
-      ?.filter((s) => s.date.startsWith(dateStr))
-      .reduce((sum, s) => sum + s.durationMinutes, 0) || 0;
-    
-    return {
-      day: format(day, "EEE"),
-      minutes: dayMinutes,
-      hours: Math.round(dayMinutes / 60 * 10) / 10,
-    };
-  });
+  // Weekly stats
+  const weekStart = new Date();
+  weekStart.setDate(weekStart.getDate() - 7);
+  const weekSessions = studySessions.filter(s => new Date(s.date) >= weekStart);
+  const weekMinutes = weekSessions.reduce((sum, s) => sum + s.durationMinutes, 0);
+  const weekHours = Math.round(weekMinutes / 60 * 10) / 10;
 
-  const inProgressClasses = classes?.filter((c) => c.status === "in_progress") || [];
+  // Recent sessions (last 10)
+  const recentSessions = [...studySessions]
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 10);
 
-  const getDaysUntil = (date: string) => {
-    const days = differenceInDays(new Date(date), new Date());
-    if (days <= 1) return "destructive";
-    if (days <= 3) return "secondary";
-    return "outline";
+  const handleLogSession = async () => {
+    const mins = parseInt(minutes);
+    if (isNaN(mins) || mins <= 0) {
+      toast({ title: "Enter valid minutes", variant: "destructive" });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await addStudySession({
+        classId: selectedClass || null,
+        durationMinutes: mins,
+        sessionType,
+        focusDuration: mins,
+        breakDuration: 0,
+      });
+      toast({ title: `${mins} minutes logged!`, description: sessionType === "group" ? "Group study session" : "Solo study session" });
+      setShowLogModal(false);
+      setMinutes("25");
+      setSessionType("solo");
+      setSelectedClass("");
+    } catch {
+      toast({ title: "Failed to log session", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const getDaysUntilLabel = (date: string) => {
-    const days = differenceInDays(new Date(date), new Date());
-    if (days === 0) return "Today";
-    if (days === 1) return "Tomorrow";
+  const handleDeleteSession = async (id: string) => {
+    try {
+      await deleteStudySession(id);
+      toast({ title: "Session deleted" });
+    } catch {
+      toast({ title: "Failed to delete", variant: "destructive" });
+    }
+  };
+
+  const handleToggleAssignment = async (assignment: typeof assignments[0]) => {
+    try {
+      await updateAssignment(assignment.id, { completed: !assignment.completed });
+      toast({ title: assignment.completed ? "Marked incomplete" : "Marked complete!" });
+    } catch {
+      toast({ title: "Failed to update", variant: "destructive" });
+    }
+  };
+
+  const getExamUrgency = (examDate: Date) => {
+    const days = differenceInDays(examDate, new Date());
+    if (days <= 1) return "destructive";
+    if (days <= 3) return "warning";
+    return "secondary";
+  };
+
+  const getAssignmentUrgency = (dueDate: Date) => {
+    if (isPast(dueDate) && !isToday(dueDate)) return "destructive";
+    if (isToday(dueDate)) return "destructive";
+    if (isTomorrow(dueDate)) return "warning";
+    return "secondary";
+  };
+
+  const formatTimeUntil = (date: Date) => {
+    const days = differenceInDays(date, new Date());
+    
+    if (isPast(date) && !isToday(date)) return "OVERDUE";
+    if (isToday(date)) return "TODAY";
+    if (isTomorrow(date)) return "Tomorrow";
+    if (days === 1) return "1 day";
     return `${days} days`;
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen">
-        <Header title="Study" />
-        <LoadingState />
-        <BottomNav />
-      </div>
-    );
-  }
-
-  const coachMessage = getDailyCoachMessage("study");
+  const getClassName = (classId: string | null) => {
+    if (!classId) return "General";
+    const cls = classes.find(c => c.id === classId);
+    return cls?.courseName || "Unknown";
+  };
 
   return (
-    <div className="min-h-screen">
-      <Header title="Study" />
+    <div className="min-h-screen bg-background pb-20">
+      {/* Header */}
+      <header className="sticky top-0 z-40 glass-card border-b border-border/50 px-4 py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-6 h-6 text-primary" />
+            <h1 className="text-xl font-bold">Study</h1>
+          </div>
+          <Button onClick={() => setShowLogModal(true)} size="sm" data-testid="button-log-study">
+            <Plus className="w-4 h-4 mr-1" />
+            Log Session
+          </Button>
+        </div>
+      </header>
 
-      <main className="px-4 pb-24 safe-bottom">
-        {/* Coach Message */}
-        {coachMessage && (
-          <GlassCard className="mt-4 mb-4">
-            <p className="text-sm text-muted-foreground italic text-center" data-testid="text-coach-study">
-              {coachMessage}
-            </p>
+      <main className="p-4 space-y-4">
+        {/* Today's Progress */}
+        <GlassCard>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-primary" />
+              <h3 className="font-semibold">Today's Progress</h3>
+            </div>
+            <span className="text-sm text-muted-foreground">{weekHours}h this week</span>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <div className="flex justify-between text-sm mb-1">
+                <span>{todayMinutes} min studied</span>
+                <span className="text-muted-foreground">Goal: {dailyGoal} min</span>
+              </div>
+              <div className="h-3 bg-muted rounded-full overflow-hidden">
+                <div 
+                  className={`h-full transition-all ${goalProgress >= 100 ? 'bg-green-500' : 'bg-primary'}`}
+                  style={{ width: `${goalProgress}%` }}
+                />
+              </div>
+            </div>
+            {goalProgress >= 100 && (
+              <CheckCircle className="w-8 h-8 text-green-500" />
+            )}
+          </div>
+        </GlassCard>
+
+        {/* Quick Stats Row */}
+        <div className="grid grid-cols-2 gap-3">
+          <GlassCard className="text-center py-4">
+            <p className="text-3xl font-bold text-primary">{todaySessions.length}</p>
+            <p className="text-sm text-muted-foreground">Sessions Today</p>
           </GlassCard>
-        )}
-
-        {/* Stats Row */}
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          <StatCard
-            icon={<Clock className="w-4 h-4" />}
-            label="Today"
-            value={`${todayMinutes}m`}
-            color="blue"
-          />
-          <StatCard
-            icon={<TrendingUp className="w-4 h-4" />}
-            label="This Week"
-            value={`${weeklyHours}h`}
-            color="green"
-          />
-          <StatCard
-            icon={<Flame className="w-4 h-4" />}
-            label="Streak"
-            value={`${studyStreak}d`}
-            color={studyStreak >= 7 ? "green" : studyStreak >= 3 ? "yellow" : "red"}
-          />
+          <GlassCard className="text-center py-4">
+            <p className="text-3xl font-bold text-primary">{weekSessions.length}</p>
+            <p className="text-sm text-muted-foreground">This Week</p>
+          </GlassCard>
         </div>
 
-        {/* Main Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-4">
-          <TabsList className="w-full">
-            <TabsTrigger value="timer" className="flex-1">
-              <Clock className="w-4 h-4 mr-1" />
-              Timer
-            </TabsTrigger>
-            <TabsTrigger value="assignments" className="flex-1">
-              <CheckSquare className="w-4 h-4 mr-1" />
-              Tasks
-              {pendingAssignments > 0 && (
-                <Badge variant="destructive" className="ml-1 h-5 w-5 p-0 justify-center text-xs">
-                  {pendingAssignments}
+        <Tabs defaultValue="reminders" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="reminders" className="flex items-center gap-1">
+              <Bell className="w-4 h-4" />
+              Reminders
+              {(upcomingExams.length + upcomingAssignments.length) > 0 && (
+                <Badge variant="destructive" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                  {upcomingExams.length + upcomingAssignments.length}
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="history" className="flex-1">
-              <BookOpen className="w-4 h-4 mr-1" />
+            <TabsTrigger value="history" className="flex items-center gap-1">
+              <Clock className="w-4 h-4" />
               History
             </TabsTrigger>
           </TabsList>
 
-          {/* Timer Tab */}
-          <TabsContent value="timer" className="mt-4 space-y-4">
-            {/* Class Selector */}
-            <div className="mb-4">
-              <label className="text-sm text-muted-foreground mb-2 block">Study for:</label>
-              <Select value={selectedClassId} onValueChange={setSelectedClassId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a class" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">General Study</SelectItem>
-                  {inProgressClasses.map((cls) => (
-                    <SelectItem key={cls.id} value={cls.id}>
-                      {cls.courseName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Upcoming Exams */}
-            {upcomingExams.length > 0 && (
-              <GlassCard>
-                <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  Upcoming Exams
-                </h3>
-                <div className="space-y-2">
-                  {upcomingExams.map((exam) => (
-                    <div key={exam.id} className="flex items-center justify-between p-2 bg-muted/30 rounded-lg">
-                      <div>
-                        <p className="font-medium text-sm">{exam.examName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(exam.examDate), "EEE, MMM d")}
-                        </p>
-                      </div>
-                      <Badge variant={getDaysUntil(exam.examDate)}>
-                        {getDaysUntilLabel(exam.examDate)}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </GlassCard>
-            )}
-
-            {/* Timers */}
-            {isStudent ? (
-              <>
-                <GlassCard className="py-8">
-                  <div className="flex items-center justify-center gap-2 mb-4 text-blue-500">
-                    <BookOpen className="w-5 h-5" />
-                    <span className="font-medium">Solo Study (Pomodoro)</span>
-                  </div>
-                  <PomodoroTimer onSessionComplete={handleSessionComplete} />
-                </GlassCard>
-
-                <GlassCard className="py-6">
-                  <StudyGroupTimer onSessionComplete={handleGroupSessionComplete} />
-                </GlassCard>
-              </>
-            ) : (
-              <GlassCard className="py-8">
-                <div className="text-center text-muted-foreground">
-                  <Clock className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p className="font-medium">View Only Mode</p>
-                  <p className="text-sm mt-1">Parents can view study history but cannot start sessions</p>
-                </div>
-              </GlassCard>
-            )}
-          </TabsContent>
-
-          {/* Assignments Tab */}
-          <TabsContent value="assignments" className="mt-4">
-            <Assignments
-              assignments={assignments}
-              classes={classes}
-              isStudent={isStudent}
-              addAssignment={addAssignment}
-              updateAssignment={updateAssignment}
-              deleteAssignment={deleteAssignment}
-            />
-          </TabsContent>
-
-          {/* History Tab */}
-          <TabsContent value="history" className="mt-4 space-y-4">
-            {/* Weekly Chart */}
+          <TabsContent value="reminders" className="space-y-4 mt-4">
+            {/* Exam Reminders */}
             <GlassCard>
-              <h3 className="font-semibold mb-4">Last 7 Days</h3>
-              <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                    <XAxis dataKey="day" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip
-                      formatter={(value: number) => [`${value} min`, "Study Time"]}
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px",
-                      }}
-                    />
-                    <Bar dataKey="minutes" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="flex items-center gap-2 mb-3">
+                <GraduationCap className="w-5 h-5 text-blue-500" />
+                <h3 className="font-semibold">Upcoming Exams</h3>
               </div>
+              
+              {upcomingExams.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No exams in the next 2 weeks 🎉
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {upcomingExams.map(exam => {
+                    const examDate = new Date(exam.examDate);
+                    const urgency = getExamUrgency(examDate);
+                    const daysUntil = differenceInDays(examDate, new Date());
+                    
+                    return (
+                      <div 
+                        key={exam.id} 
+                        className={`flex items-center justify-between p-3 rounded-lg ${
+                          daysUntil <= 1 ? 'bg-red-500/20 border border-red-500/50' :
+                          daysUntil <= 3 ? 'bg-yellow-500/20 border border-yellow-500/50' :
+                          'bg-muted/50'
+                        }`}
+                      >
+                        <div className="flex-1">
+                          <p className="font-medium">{exam.examName}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {getClassName(exam.classId)} • {format(examDate, "EEE, MMM d")}
+                          </p>
+                        </div>
+                        <Badge variant={urgency as any}>
+                          {daysUntil <= 1 && <AlertTriangle className="w-3 h-3 mr-1" />}
+                          {formatTimeUntil(examDate)}
+                        </Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </GlassCard>
 
-            {/* Recent Sessions */}
+            {/* Assignment Reminders */}
             <GlassCard>
-              <h3 className="font-semibold mb-4">Recent Sessions</h3>
-              {sessions?.length === 0 ? (
-                <EmptyState
-                  icon={<Clock className="w-8 h-8" />}
-                  title="No study sessions yet"
-                  description="Start a timer to track your study time"
-                />
+              <div className="flex items-center gap-2 mb-3">
+                <FileText className="w-5 h-5 text-orange-500" />
+                <h3 className="font-semibold">Assignments Due</h3>
+              </div>
+              
+              {upcomingAssignments.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No assignments due soon ✅
+                </p>
               ) : (
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {sessions
-                    ?.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                    .slice(0, 20)
-                    .map((session) => {
-                      const sessionClass = classes?.find((c) => c.id === session.classId);
-                      return (
-                        <div
-                          key={session.id}
-                          className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                              session.sessionType === "group" ? "bg-purple-500/20 text-purple-500" : "bg-blue-500/20 text-blue-500"
-                            }`}>
-                              {session.sessionType === "group" ? (
-                                <Users className="w-4 h-4" />
-                              ) : (
-                                <Clock className="w-4 h-4" />
-                              )}
-                            </div>
-                            <div>
-                              <p className="font-medium text-sm">
-                                {sessionClass?.courseName || "General Study"}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {format(new Date(session.date), "MMM d, h:mm a")}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold">{session.durationMinutes}m</span>
-                            {isStudent && (
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7">
-                                    <Trash2 className="w-3 h-3 text-muted-foreground hover:text-destructive" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Delete Session?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      This will permanently delete this study session.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction
-                                      onClick={async () => {
-                                        await deleteStudySession(session.id);
-                                        toast({ title: "Session deleted" });
-                                      }}
-                                      className="bg-destructive hover:bg-destructive/90"
-                                    >
-                                      Delete
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            )}
+                <div className="space-y-2">
+                  {upcomingAssignments.map(assignment => {
+                    const dueDate = new Date(assignment.dueDate);
+                    const urgency = getAssignmentUrgency(dueDate);
+                    
+                    return (
+                      <div 
+                        key={assignment.id} 
+                        className={`flex items-center justify-between p-3 rounded-lg ${
+                          isPast(dueDate) && !isToday(dueDate) ? 'bg-red-500/20 border border-red-500/50' :
+                          isToday(dueDate) ? 'bg-red-500/20 border border-red-500/50' :
+                          isTomorrow(dueDate) ? 'bg-yellow-500/20 border border-yellow-500/50' :
+                          'bg-muted/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 flex-1">
+                          <button
+                            onClick={() => handleToggleAssignment(assignment)}
+                            className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                              assignment.completed 
+                                ? 'bg-green-500 border-green-500' 
+                                : 'border-muted-foreground'
+                            }`}
+                          >
+                            {assignment.completed && <CheckCircle className="w-4 h-4 text-white" />}
+                          </button>
+                          <div>
+                            <p className={`font-medium ${assignment.completed ? 'line-through text-muted-foreground' : ''}`}>
+                              {assignment.title}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {assignment.classId ? getClassName(assignment.classId) : "General"}
+                            </p>
                           </div>
                         </div>
-                      );
-                    })}
+                        <Badge variant={urgency as any}>
+                          {(isPast(dueDate) && !isToday(dueDate)) && <AlertTriangle className="w-3 h-3 mr-1" />}
+                          {formatTimeUntil(dueDate)}
+                        </Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </GlassCard>
+          </TabsContent>
+
+          <TabsContent value="history" className="space-y-4 mt-4">
+            <GlassCard>
+              <div className="flex items-center gap-2 mb-3">
+                <Clock className="w-5 h-5 text-primary" />
+                <h3 className="font-semibold">Recent Sessions</h3>
+              </div>
+              
+              {recentSessions.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No study sessions yet. Tap "Log Session" to start!
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {recentSessions.map(session => (
+                    <div 
+                      key={session.id} 
+                      className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        {session.sessionType === "group" ? (
+                          <Users className="w-5 h-5 text-blue-500" />
+                        ) : (
+                          <User className="w-5 h-5 text-primary" />
+                        )}
+                        <div>
+                          <p className="font-medium">{session.durationMinutes} minutes</p>
+                          <p className="text-sm text-muted-foreground">
+                            {getClassName(session.classId)} • {format(new Date(session.date), "EEE, MMM d")}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">
+                          {session.sessionType === "group" ? "Group" : "Solo"}
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => handleDeleteSession(session.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </GlassCard>
@@ -421,6 +395,87 @@ export default function Study() {
       </main>
 
       <BottomNav />
+
+      {/* Log Session Modal */}
+      <Dialog open={showLogModal} onOpenChange={setShowLogModal}>
+        <DialogContent className="glass-card">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookOpen className="w-5 h-5" />
+              Log Study Session
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Duration */}
+            <div>
+              <Label>How many minutes did you study?</Label>
+              <Input
+                type="number"
+                value={minutes}
+                onChange={(e) => setMinutes(e.target.value)}
+                placeholder="25"
+                min="1"
+                max="480"
+                className="mt-1"
+                data-testid="input-study-minutes"
+              />
+            </div>
+
+            {/* Session Type */}
+            <div>
+              <Label>Session Type</Label>
+              <div className="flex gap-2 mt-1">
+                <Button
+                  type="button"
+                  variant={sessionType === "solo" ? "default" : "outline"}
+                  className="flex-1"
+                  onClick={() => setSessionType("solo")}
+                >
+                  <User className="w-4 h-4 mr-2" />
+                  Solo
+                </Button>
+                <Button
+                  type="button"
+                  variant={sessionType === "group" ? "default" : "outline"}
+                  className="flex-1"
+                  onClick={() => setSessionType("group")}
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  Group
+                </Button>
+              </div>
+            </div>
+
+            {/* Class Selection */}
+            <div>
+              <Label>Class (optional)</Label>
+              <Select value={selectedClass} onValueChange={setSelectedClass}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select a class" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="general">General Study</SelectItem>
+                  {classes.map(cls => (
+                    <SelectItem key={cls.id} value={cls.id}>
+                      {cls.courseName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLogModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleLogSession} disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : "Log Session"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

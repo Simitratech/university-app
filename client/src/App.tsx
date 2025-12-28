@@ -20,6 +20,7 @@ import Money from "@/pages/Money";
 import Wellness from "@/pages/Wellness";
 import WeeklyReport from "@/pages/WeeklyReport";
 import Settings from "@/pages/Settings";
+import Statistics from "@/pages/Statistics";
 import NotFound from "@/pages/not-found";
 import type { AppProfile } from "@shared/schema";
 
@@ -35,9 +36,9 @@ function AuthenticatedRoutes() {
 
   return (
     <StudentDataProvider>
-      <ProfileSetup 
-        open={showProfileSetup} 
-        onComplete={() => setProfileSetupDismissed(true)} 
+      <ProfileSetup
+        open={showProfileSetup}
+        onComplete={() => setProfileSetupDismissed(true)}
       />
       <Switch>
         <Route path="/" component={Home} />
@@ -48,6 +49,7 @@ function AuthenticatedRoutes() {
         <Route path="/wellness" component={Wellness} />
         <Route path="/reports" component={WeeklyReport} />
         <Route path="/settings" component={Settings} />
+        <Route path="/stats" component={Statistics} />
         <Route component={NotFound} />
       </Switch>
     </StudentDataProvider>
